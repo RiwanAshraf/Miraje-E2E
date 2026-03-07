@@ -197,6 +197,7 @@ function ResultCard({ code, name, desc, score, mode, visible }) {
 
 /* ── MAIN APP ── */
 export default function Miraje() {
+
   const [mode, setModeKey] = useState("image");
   const [fileLoaded, setFileLoaded] = useState(false);
   const [previewSrc, setPreviewSrc] = useState(null);
@@ -212,6 +213,8 @@ export default function Miraje() {
   const [results, setResults] = useState([]);
   const [visibleScores, setVisibleScores] = useState([]);
   const [activeNav, setActiveNav] = useState("Analysis");
+  const [audioSrc, setAudioSrc] = useState(null);
+  const [history, setHistory] = useState([]);
   const fileRef = useRef(null);
   const cfg = CFG[mode];
 
@@ -243,7 +246,14 @@ export default function Miraje() {
       const r = new FileReader();
       r.onload = e => setPreviewSrc(e.target.result);
       r.readAsDataURL(file);
-    } else { setPreviewSrc(null); }
+      setAudioSrc(null);
+    } else if (file.type.startsWith("audio/")) {
+      setAudioSrc(URL.createObjectURL(file));
+      setPreviewSrc(null);
+    } else {
+      setPreviewSrc(null);
+      setAudioSrc(null);
+    }
     setScanning(true);
     setTimeout(() => setScanning(false), 3200);
   }
@@ -265,35 +275,79 @@ export default function Miraje() {
       setPipelineSteps(prev => prev.map((s, j) => j === i ? { ...s, state: "done" } : s));
     }
 
-    // Send image to Flask API
-    const formData = new FormData();
-    formData.append("image", file);
+    let score = 50 + Math.random() * 46
+    let prediction = "real"
 
-    const response = await fetch("http://localhost:5000/predict", {
-      method: "POST",
-      body: formData
-    });
+    if (mode === 'image') {
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+        const response = await fetch("http://localhost:5000/predict-image", {
+          method: "POST",
+          body: formData
+        });
+        const data = await response.json();
+        score = data.fake_probability;
+        prediction = data.prediction;
+      } catch (err) {
+        console.error("Image API error:", err);
+      }
 
-    const data = await response.json();
+    } else if (mode === 'audio') {
+      try {
+        const formData = new FormData();
+        formData.append("audio", file);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
+        const response = await fetch("http://localhost:5000/predict-audio", {
+          method: "POST",
+          body: formData,
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+        const data = await response.json();
+        score = data.score;
+        prediction = data.prediction;
+      } catch (err) {
+        console.error("Audio API error:", err);
+        score = 50;
+        prediction = "real";
+      }
+    }
 
-    const score = data.fake_prob;
-    const isFake = data.prediction === "fake";
+    const isFake = prediction === "fake";
     const isUnc = score >= 45 && score <= 68;
     const color = isFake ? "var(--danger2)" : isUnc ? "var(--warn2)" : "var(--safe2)";
     const glow = isFake ? "rgba(192,80,74,.4)" : isUnc ? "rgba(176,128,64,.38)" : "rgba(74,158,130,.4)";
     const word = isFake ? (mode === "signature" ? "Forgery Confirmed" : "Synthetic Detected") : isUnc ? "Inconclusive" : "Authentic";
     setVerdict({ score, color, glow, word, note: `${score.toFixed(1)}% synthetic probability` });
 
-    const mv = cfg.metrics.map(() => Math.min(97, (isFake ? 42 : 8) + Math.random() * (isFake ? 50 : 38)));
-    setMetrics(cfg.metrics.map((m, i) => ({ ...m, value: mv[i], label: mv[i].toFixed(1) + "%" })));
+    setMetrics(cfg.metrics.map((m) => ({ ...m, value: score, label: score.toFixed(1) + "%" })));
 
-    const scores = cfg.results.map(() => Math.min(97, (isFake ? 48 : 8) + Math.random() * 45));
-    setResults(cfg.results.map((r, i) => ({ ...r, score: scores[i] })));
+    setResults(cfg.results.map((r) => ({ ...r, score: score })));
     setVisibleScores([]);
     await sleep(80);
-    scores.forEach((_, i) => setTimeout(() => setVisibleScores(prev => [...prev, i]), i * 180));
+    cfg.results.forEach((_, i) => setTimeout(() => setVisibleScores(prev => [...prev, i]), i * 180));
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} · ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const newEntry = {
+      glyph: getModeGlyph(mode),
+      name: fileName,
+      size: fileSize + " MB",
+      type: mode.charAt(0).toUpperCase() + mode.slice(1),
+      cls: isFake ? "v-fake" : isUnc ? "v-unc" : "v-real",
+      lbl: isFake ? (mode === "signature" ? "Forged" : "Synthetic") : isUnc ? "Inconclusive" : "Authentic",
+      conf: score.toFixed(1) + "%",
+      confClr: isFake ? "var(--danger2)" : isUnc ? "var(--warn2)" : "var(--safe2)",
+      date: dateStr
+    };
+    setHistory(prev => [newEntry, ...prev]);
     setAnalysing(false);
-  }, [fileLoaded, analysing, mode, cfg]);
+  }, [fileLoaded, analysing, mode, cfg, file]);
+  function getModeGlyph(m) {
+    return m === "image" ? "▣" : m === "video" ? "▶" : m === "audio" ? "♪" : "✦";
+  }
+
 
   return (
     <>
@@ -406,17 +460,32 @@ export default function Miraje() {
               {scanning && <div className="scan-beam" />}
               {previewSrc
                 ? <img className="preview-img" src={previewSrc} alt="preview" />
-                : <div className="drop-inner">
-                  <div className="drop-mirage">
-                    {[{ d: "0s", op: .7, t: "0" }, { d: ".4s", op: .42, t: "8px" }, { d: ".8s", op: .25, t: "16px" }, { d: "1.2s", op: .14, t: "24px" }, { d: "1.6s", op: .06, t: "32px" }].map((l, i) => (
-                      <div key={i} className="dm-line" style={{ "--delay": l.d, opacity: l.op, top: l.t }} />
-                    ))}
+                : audioSrc
+                  ? <div className="drop-inner">
+                    <div className="drop-title">{fileName}</div>
+                    <div className="drop-sub">{fileSize} MB — ready</div>
+                    <audio
+                      controls
+                      src={audioSrc}
+                      style={{
+                        width: "100%",
+                        marginTop: "16px",
+                        accentColor: "var(--acc)",
+                        filter: "invert(1) hue-rotate(180deg)"
+                      }}
+                    />
                   </div>
-                  <div className="drop-title">{fileName ? fileName : "Submit for analysis"}</div>
-                  <div className="drop-sub">{fileSize ? `${fileSize} MB — ready` : "Drag & drop your file here,\nor select from your device."}</div>
-                  <div className="drop-fmts">{cfg.fmts.map(f => <span key={f} className="dfmt">{f}</span>)}</div>
-                  <button className="drop-cta" onClick={e => { e.stopPropagation(); fileRef.current?.click() }}><span>Browse Files</span></button>
-                </div>
+                  : <div className="drop-inner">
+                    <div className="drop-mirage">
+                      {[{ d: "0s", op: .7, t: "0" }, { d: ".4s", op: .42, t: "8px" }, { d: ".8s", op: .25, t: "16px" }, { d: "1.2s", op: .14, t: "24px" }, { d: "1.6s", op: .06, t: "32px" }].map((l, i) => (
+                        <div key={i} className="dm-line" style={{ "--delay": l.d, opacity: l.op, top: l.t }} />
+                      ))}
+                    </div>
+                    <div className="drop-title">{fileName ? fileName : "Submit for analysis"}</div>
+                    <div className="drop-sub">{fileSize ? `${fileSize} MB — ready` : "Drag & drop your file here,\nor select from your device."}</div>
+                    <div className="drop-fmts">{cfg.fmts.map(f => <span key={f} className="dfmt">{f}</span>)}</div>
+                    <button className="drop-cta" onClick={e => { e.stopPropagation(); fileRef.current?.click() }}><span>Browse Files</span></button>
+                  </div>
               }
             </div>
             <input type="file" ref={fileRef} onChange={onFilePick} />
@@ -486,20 +555,18 @@ export default function Miraje() {
             <div className="sec-head" style={{ marginBottom: 18 }}>Recent Cases</div>
             <div className="table-wrap">
               <div className="t-head"><div>File</div><div>Type</div><div>Verdict</div><div>Score</div><div>Timestamp</div></div>
-              {[
-                { glyph: "▣", name: "portrait_edit.jpg", size: "2.4 MB", type: "Image", cls: "v-fake", lbl: "Synthetic", conf: "94.2%", confClr: "var(--danger2)", date: "2026-03-06 · 14:22" },
-                { glyph: "▶", name: "interview_clip.mp4", size: "48.1 MB", type: "Video", cls: "v-real", lbl: "Authentic", conf: "97.8%", confClr: "var(--safe2)", date: "2026-03-05 · 09:47" },
-                { glyph: "♪", name: "voicemail_03.wav", size: "1.2 MB", type: "Audio", cls: "v-unc", lbl: "Inconclusive", conf: "61.5%", confClr: "var(--warn2)", date: "2026-03-05 · 08:11" },
-                { glyph: "✦", name: "contract_sig.png", size: "0.8 MB", type: "Signature", cls: "v-fake", lbl: "Forged", conf: "88.7%", confClr: "var(--danger2)", date: "2026-03-04 · 16:55" },
-              ].map((r, i) => (
-                <div key={i} className="t-row">
-                  <div className="t-file"><div className="t-glyph">{r.glyph}</div><div><div className="t-fname">{r.name}</div><div className="t-fsize">{r.size}</div></div></div>
-                  <div className="t-type">{r.type}</div>
-                  <div><span className={`rc-verdict ${r.cls}`}>{r.lbl}</span></div>
-                  <div className="t-conf" style={{ color: r.confClr }}>{r.conf}</div>
-                  <div className="t-date">{r.date}</div>
-                </div>
-              ))}
+              {history.length === 0
+                ? <div style={{ padding: "20px", color: "var(--fog)", textAlign: "center" }}>No cases analysed yet</div>
+                : history.map((r, i) => (
+                  <div key={i} className="t-row">
+                    <div className="t-file"><div className="t-glyph">{r.glyph}</div><div><div className="t-fname">{r.name}</div><div className="t-fsize">{r.size}</div></div></div>
+                    <div className="t-type">{r.type}</div>
+                    <div><span className={`rc-verdict ${r.cls}`}>{r.lbl}</span></div>
+                    <div className="t-conf" style={{ color: r.confClr }}>{r.conf}</div>
+                    <div className="t-date">{r.date}</div>
+                  </div>
+                ))
+              }
             </div>
           </div>
         </div>

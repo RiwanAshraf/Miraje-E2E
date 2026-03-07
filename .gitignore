@@ -24,3 +24,4 @@ dist-ssr
 *.sw?
 
 backend/image_module.pth
+backend/audio_model.keras
