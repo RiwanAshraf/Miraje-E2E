@@ -9,7 +9,7 @@ from transformers import ViTModel, ViTConfig
 import tensorflow as tf
 import librosa
 import numpy as np
-
+import cv2
 from PIL import Image
 import os
 
@@ -186,7 +186,8 @@ def predict_audio():
         print(f"Input shape to model: {features.shape}")
 
         prediction = audio_model.predict(features, verbose=0)[0][0]
-        fake_prob = float(prediction) * 100
+        real_prob_raw = float(prediction)
+        fake_prob = (1 - real_prob_raw) * 100  
         print(f"Audio — fake score: {fake_prob:.2f}%")
 
         return jsonify({
@@ -204,10 +205,57 @@ def predict_audio():
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
+# ============================================================
+# SIGNATURE MODEL (MobileNetV2)
+# ============================================================
+signature_model = tf.keras.models.load_model("signature_forgery_detector.keras")
+signature_model.trainable = False
+print("Signature model loaded")
 
+def extract_signature_features(path):
+    img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        raise ValueError("Cannot read image")
+    img = cv2.resize(img, (128, 128))
+    img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    img = img.astype(np.float32) / 255.0
+    return np.expand_dims(img, 0)
+
+@app.route("/predict-signature", methods=["POST"])
+def predict_signature():
+    if "signature" not in request.files:
+        return jsonify({"error": "No signature uploaded"}), 400
+
+    file = request.files["signature"]
+    temp_path = "temp_signature.png"
+
+    try:
+        with open(temp_path, "wb") as f:
+            f.write(file.read())
+
+        features = extract_signature_features(temp_path)
+        prob_genuine = float(signature_model.predict(features, verbose=0)[0][0])
+        forged_prob = (1 - prob_genuine) * 100
+        print(f"Signature — forged: {forged_prob:.2f}%")
+
+        return jsonify({
+            "prediction": "fake" if forged_prob > 50 else "real",
+            "fake_probability": round(forged_prob, 2),
+            "real_probability": round(prob_genuine * 100, 2),
+            "score": round(forged_prob, 2)
+        })
+
+    except Exception as e:
+        print(f"Signature error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 # ============================================================
 # RUN SERVER
 # ============================================================
+
 
 if __name__ == "__main__":
     app.run(port=5000, debug=False, use_reloader=False)

@@ -315,262 +315,267 @@ export default function Miraje() {
       }
     }
 
-    const isFake = prediction === "fake";
-    const isUnc = score >= 45 && score <= 68;
-    const color = isFake ? "var(--danger2)" : isUnc ? "var(--warn2)" : "var(--safe2)";
-    const glow = isFake ? "rgba(192,80,74,.4)" : isUnc ? "rgba(176,128,64,.38)" : "rgba(74,158,130,.4)";
-    const word = isFake ? (mode === "signature" ? "Forgery Confirmed" : "Synthetic Detected") : isUnc ? "Inconclusive" : "Authentic";
-    setVerdict({ score, color, glow, word, note: `${score.toFixed(1)}% synthetic probability` });
-
-    setMetrics(cfg.metrics.map((m) => ({ ...m, value: score, label: score.toFixed(1) + "%" })));
-
-    setResults(cfg.results.map((r) => ({ ...r, score: score })));
-    setVisibleScores([]);
-    await sleep(80);
-    cfg.results.forEach((_, i) => setTimeout(() => setVisibleScores(prev => [...prev, i]), i * 180));
-    const now = new Date();
-    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} · ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const newEntry = {
-      glyph: getModeGlyph(mode),
-      name: fileName,
-      size: fileSize + " MB",
-      type: mode.charAt(0).toUpperCase() + mode.slice(1),
-      cls: isFake ? "v-fake" : isUnc ? "v-unc" : "v-real",
-      lbl: isFake ? (mode === "signature" ? "Forged" : "Synthetic") : isUnc ? "Inconclusive" : "Authentic",
-      conf: score.toFixed(1) + "%",
-      confClr: isFake ? "var(--danger2)" : isUnc ? "var(--warn2)" : "var(--safe2)",
-      date: dateStr
-    };
-    setHistory(prev => [newEntry, ...prev]);
-    setAnalysing(false);
-  }, [fileLoaded, analysing, mode, cfg, file]);
-  function getModeGlyph(m) {
-    return m === "image" ? "▣" : m === "video" ? "▶" : m === "audio" ? "♪" : "✦";
+  else if (mode === 'signature') {
+    try {
+      const formData = new FormData();
+      formData.append("signature", file);
+      const response = await fetch("http://localhost:5000/predict-signature", {
+        method: "POST",
+        body: formData
+      });
+      const data = await response.json();
+      score = data.score;
+      prediction = data.prediction;
+    } catch (err) {
+      console.error("Signature API error:", err);
+      score = 50;
+      prediction = "real";
+    }
   }
 
+  const isFake = prediction === "fake";
+  const isUnc = score >= 45 && score <= 68;
+  const color = isFake ? "var(--danger2)" : isUnc ? "var(--warn2)" : "var(--safe2)";
+  const glow = isFake ? "rgba(192,80,74,.4)" : isUnc ? "rgba(176,128,64,.38)" : "rgba(74,158,130,.4)";
+  const word = isFake ? (mode === "signature" ? "Forgery Confirmed" : "Synthetic Detected") : isUnc ? "Inconclusive" : "Authentic";
+  setVerdict({ score, color, glow, word, note: `${score.toFixed(1)}% synthetic probability` });
 
-  return (
-    <>
+  setMetrics(cfg.metrics.map((m) => ({ ...m, value: score, label: score.toFixed(1) + "%" })));
+
+  setResults(cfg.results.map((r) => ({ ...r, score: score })));
+  setVisibleScores([]);
+  await sleep(80);
+  cfg.results.forEach((_, i) => setTimeout(() => setVisibleScores(prev => [...prev, i]), i * 180));
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} · ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const newEntry = {
+    glyph: getModeGlyph(mode),
+    name: fileName,
+    size: fileSize + " MB",
+    type: mode.charAt(0).toUpperCase() + mode.slice(1),
+    cls: isFake ? "v-fake" : isUnc ? "v-unc" : "v-real",
+    lbl: isFake ? (mode === "signature" ? "Forged" : "Synthetic") : isUnc ? "Inconclusive" : "Authentic",
+    conf: score.toFixed(1) + "%",
+    confClr: isFake ? "var(--danger2)" : isUnc ? "var(--warn2)" : "var(--safe2)",
+    date: dateStr
+  };
+  setHistory(prev => [newEntry, ...prev]);
+  setAnalysing(false);
+}, [fileLoaded, analysing, mode, cfg, file]);
+function getModeGlyph(m) {
+  return m === "image" ? "▣" : m === "video" ? "▶" : m === "audio" ? "♪" : "✦";
+}
 
 
-      <Cursor />
+return (
+  <>
 
-      {/* HEADER */}
-      <header>
-        <div className="brand">
-          <div className="brand-wordmark">MIRAJE</div>
-          <div className="brand-divider" />
-          <div className="brand-tagline">Where Reality Dissolves</div>
-        </div>
-        <nav>
-          {["Analysis", "Archive", "Reports", "System"].map(n => (
-            <button key={n} className={`nav-btn${activeNav === n ? " active" : ""}`} onClick={() => setActiveNav(n)}>{n}</button>
-          ))}
-        </nav>
-        <div className="sys-status">
-          <div className="pulse-dot" />
-          <span>Systems Online</span>
-        </div>
-      </header>
 
-      {/* HERO */}
-      <div className="hero">
-        <div className="sky"><StarCanvas /></div>
-        <div className="ground" />
-        <div className="horizon-glow" />
-        <div className="horizon-line" />
-        <div className="figure" />
-        <div className="pool">
-          {[{ d: "3.2s", delay: "0s", op: .5, b: "2px" }, { d: "4.1s", delay: ".5s", op: .32, b: "7px" }, { d: "3.7s", delay: "1s", op: .2, b: "12px" }, { d: "5s", delay: "1.7s", op: .1, b: "17px" }].map((p, i) => (
-            <div key={i} className="pool-wave" style={{ "--d": p.d, "--delay": p.delay, "--op": p.op, bottom: p.b }} />
-          ))}
-        </div>
-        <div className="heat">
-          {[{ d: "3.5s", dl: "0s", op: .11, b: "2px" }, { d: "4.2s", dl: ".4s", op: .08, b: "12px" }, { d: "3.9s", dl: ".9s", op: .07, b: "22px" }, { d: "5.1s", dl: "1.5s", op: .05, b: "35px" }, { d: "4.6s", dl: "2.1s", op: .03, b: "52px" }].map((h, i) => (
-            <div key={i} className="heat-wave" style={{ "--d": h.d, "--delay": h.dl, "--op": h.op, bottom: h.b }} />
-          ))}
-        </div>
-        <div className="reflection">
-          {[{ d: "4s", dl: "0s", op: .15, b: "2px" }, { d: "5.5s", dl: ".7s", op: .1, b: "9px" }, { d: "4.8s", dl: "1.4s", op: .06, b: "18px" }, { d: "6s", dl: "2s", op: .03, b: "28px" }].map((r, i) => (
-            <div key={i} className="ref-band" style={{ "--d": r.d, "--delay": r.dl, "--op": r.op, bottom: r.b }} />
-          ))}
-        </div>
-        <div className="scene-label sl-tl">Optical Illusion</div>
-        <div className="scene-label sl-tr">Light · Bending</div>
-        <div className="scene-label sl-horizon">— horizon —</div>
-        <div className="scene-label sl-br">Desert · Mirage · 28.4°N</div>
-        <div className="hero-fade" />
-        <div className="hero-text">
-          <div className="hero-headline">
-            <h1 className="hero-title">
-              Nothing<br />is what<br />
-              <em data-text="it appears.">it appears.</em>
-            </h1>
-            <p className="hero-desc">Like a mirage on the horizon — synthetic media deceives the eye. Miraje sees through the distortion, revealing what is real and what was constructed.</p>
-            <div className="hero-quote">
-              <div className="hq-mark">"</div>
-              <div className="hq-text">A mirage is not a lie. It is light, bending. Deepfakes are the same — truth, refracted through a machine.</div>
-            </div>
-          </div>
-          <div className="hero-stats">
-            <div className="stats-block">
-              <div className="stats-row">
-                <div className="stat"><div className="stat-value">99.2%</div><div className="stat-label">Detection Accuracy</div></div>
-                <div className="stat"><div className="stat-value">4</div><div className="stat-label">Modalities</div></div>
-                <div className="stat"><div className="stat-value">&lt;3s</div><div className="stat-label">Avg. Inference</div></div>
-              </div>
-              <div className="stats-row">
-                <div className="stat"><div className="stat-value">12</div><div className="stat-label">Neural Models</div></div>
-                <div className="stat"><div className="stat-value">256-bit</div><div className="stat-label">Encryption</div></div>
-                <div className="stat"><div className="stat-value">Zero</div><div className="stat-label">Data Retained</div></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="scroll-hint">
-          <div className="sh-text">Scroll</div>
-          <div className="sh-line" />
-        </div>
+    <Cursor />
+
+    {/* HEADER */}
+    <header>
+      <div className="brand">
+        <div className="brand-wordmark">MIRAJE</div>
+        <div className="brand-divider" />
+        <div className="brand-tagline">Where Reality Dissolves</div>
       </div>
+      <nav>
+        {["Analysis", "Archive", "Reports", "System"].map(n => (
+          <button key={n} className={`nav-btn${activeNav === n ? " active" : ""}`} onClick={() => setActiveNav(n)}>{n}</button>
+        ))}
+      </nav>
+      <div className="sys-status">
+        <div className="pulse-dot" />
+        <span>Systems Online</span>
+      </div>
+    </header>
 
-      {/* PAGE CONTENT */}
-      <main>
-        <div className="page">
-          <div className="sec-head" style={{ marginBottom: 14 }}>Detection Mode</div>
-          <div className="modes">
-            {[
-              { key: "image", code: "IMG //", name: "Image", desc: "AI-generated and manipulated photograph detection via GAN fingerprinting", flag: "Live" },
-              { key: "video", code: "VID //", name: "Video", desc: "Frame-by-frame temporal coherence analysis for face swap and synthesis", flag: "Live" },
-              { key: "audio", code: "AUD //", name: "Audio", desc: "Cloned voice and synthetic speech identification via spectral forensics", flag: "Beta" },
-              { key: "signature", code: "SIG //", name: "Signature", desc: "Handwritten signature forgery detection using stroke dynamics analysis", flag: "Beta" },
-            ].map(m => (
-              <div key={m.key} className={`mode-tile${mode === m.key ? " active" : ""}`} onClick={() => handleSetMode(m.key)}>
-                <div className={`mode-flag ${m.flag === "Live" ? "flag-live" : "flag-beta"}`}>{m.flag}</div>
-                <div className="mode-code">{m.code}</div>
-                <div className="mode-name">{m.name}</div>
-                <div className="mode-desc">{m.desc}</div>
-              </div>
-            ))}
+    {/* HERO */}
+    <div className="hero">
+      <div className="sky"><StarCanvas /></div>
+      <div className="ground" />
+      <div className="horizon-glow" />
+      <div className="horizon-line" />
+      <div className="figure" />
+      <div className="pool">
+        {[{ d: "3.2s", delay: "0s", op: .5, b: "2px" }, { d: "4.1s", delay: ".5s", op: .32, b: "7px" }, { d: "3.7s", delay: "1s", op: .2, b: "12px" }, { d: "5s", delay: "1.7s", op: .1, b: "17px" }].map((p, i) => (
+          <div key={i} className="pool-wave" style={{ "--d": p.d, "--delay": p.delay, "--op": p.op, bottom: p.b }} />
+        ))}
+      </div>
+      <div className="heat">
+        {[{ d: "3.5s", dl: "0s", op: .11, b: "2px" }, { d: "4.2s", dl: ".4s", op: .08, b: "12px" }, { d: "3.9s", dl: ".9s", op: .07, b: "22px" }, { d: "5.1s", dl: "1.5s", op: .05, b: "35px" }, { d: "4.6s", dl: "2.1s", op: .03, b: "52px" }].map((h, i) => (
+          <div key={i} className="heat-wave" style={{ "--d": h.d, "--delay": h.dl, "--op": h.op, bottom: h.b }} />
+        ))}
+      </div>
+      <div className="reflection">
+        {[{ d: "4s", dl: "0s", op: .15, b: "2px" }, { d: "5.5s", dl: ".7s", op: .1, b: "9px" }, { d: "4.8s", dl: "1.4s", op: .06, b: "18px" }, { d: "6s", dl: "2s", op: .03, b: "28px" }].map((r, i) => (
+          <div key={i} className="ref-band" style={{ "--d": r.d, "--delay": r.dl, "--op": r.op, bottom: r.b }} />
+        ))}
+      </div>
+      <div className="scene-label sl-tl">Optical Illusion</div>
+      <div className="scene-label sl-tr">Light · Bending</div>
+      <div className="scene-label sl-horizon">— horizon —</div>
+      <div className="scene-label sl-br">Desert · Mirage · 28.4°N</div>
+      <div className="hero-fade" />
+      <div className="hero-text">
+        <div className="hero-headline">
+          <h1 className="hero-title">
+            Nothing<br />is what<br />
+            <em data-text="it appears.">it appears.</em>
+          </h1>
+          <p className="hero-desc">Like a mirage on the horizon — synthetic media deceives the eye. Miraje sees through the distortion, revealing what is real and what was constructed.</p>
+          <div className="hero-quote">
+            <div className="hq-mark">"</div>
+            <div className="hq-text">A mirage is not a lie. It is light, bending. Deepfakes are the same — truth, refracted through a machine.</div>
           </div>
+        </div>
 
-          <div className="workspace">
-            {/* DROP ZONE */}
-            <div className="drop-zone" onDragOver={onDragOver} onDragLeave={() => { }} onDrop={onDrop} onClick={() => fileRef.current?.click()}>
-              <div className="dc tl" /><div className="dc tr" /><div className="dc bl" /><div className="dc br" />
-              {scanning && <div className="scan-beam" />}
-              {previewSrc
-                ? <img className="preview-img" src={previewSrc} alt="preview" />
-                : audioSrc
-                  ? <div className="drop-inner">
-                    <div className="drop-title">{fileName}</div>
-                    <div className="drop-sub">{fileSize} MB — ready</div>
-                    <audio
-                      controls
-                      src={audioSrc}
-                      style={{
-                        width: "100%",
-                        marginTop: "16px",
-                        accentColor: "var(--acc)",
-                        filter: "invert(1) hue-rotate(180deg)"
-                      }}
-                    />
-                  </div>
-                  : <div className="drop-inner">
-                    <div className="drop-mirage">
-                      {[{ d: "0s", op: .7, t: "0" }, { d: ".4s", op: .42, t: "8px" }, { d: ".8s", op: .25, t: "16px" }, { d: "1.2s", op: .14, t: "24px" }, { d: "1.6s", op: .06, t: "32px" }].map((l, i) => (
-                        <div key={i} className="dm-line" style={{ "--delay": l.d, opacity: l.op, top: l.t }} />
-                      ))}
-                    </div>
-                    <div className="drop-title">{fileName ? fileName : "Submit for analysis"}</div>
-                    <div className="drop-sub">{fileSize ? `${fileSize} MB — ready` : "Drag & drop your file here,\nor select from your device."}</div>
-                    <div className="drop-fmts">{cfg.fmts.map(f => <span key={f} className="dfmt">{f}</span>)}</div>
-                    <button className="drop-cta" onClick={e => { e.stopPropagation(); fileRef.current?.click() }}><span>Browse Files</span></button>
-                  </div>
-              }
+      </div>
+      <div className="scroll-hint">
+        <div className="sh-text">Scroll</div>
+        <div className="sh-line" />
+      </div>
+    </div>
+
+    {/* PAGE CONTENT */}
+    <main>
+      <div className="page">
+        <div className="sec-head" style={{ marginBottom: 14 }}>Detection Mode</div>
+        <div className="modes">
+          {[
+            { key: "image", code: "IMG //", name: "Image", desc: "AI-generated and manipulated photograph detection via GAN fingerprinting", flag: "Live" },
+            { key: "video", code: "VID //", name: "Video", desc: "Frame-by-frame temporal coherence analysis for face swap and synthesis", flag: "Live" },
+            { key: "audio", code: "AUD //", name: "Audio", desc: "Cloned voice and synthetic speech identification via spectral forensics", flag: "Beta" },
+            { key: "signature", code: "SIG //", name: "Signature", desc: "Handwritten signature forgery detection using stroke dynamics analysis", flag: "Beta" },
+          ].map(m => (
+            <div key={m.key} className={`mode-tile${mode === m.key ? " active" : ""}`} onClick={() => handleSetMode(m.key)}>
+              <div className={`mode-flag ${m.flag === "Live" ? "flag-live" : "flag-beta"}`}>{m.flag}</div>
+              <div className="mode-code">{m.code}</div>
+              <div className="mode-name">{m.name}</div>
+              <div className="mode-desc">{m.desc}</div>
             </div>
-            <input type="file" ref={fileRef} onChange={onFilePick} />
+          ))}
+        </div>
 
-            {/* SIDEBAR */}
-            <div className="sidebar">
-              <div className="panel">
-                <div className="panel-head">
-                  <div className="panel-label">Verdict</div>
-                  <div className="panel-status">
-                    <div className="pulse-dot" style={{ width: 4, height: 4 }} />
-                    <span>{analysing ? "Processing" : "Idle"}</span>
-                  </div>
+        <div className="workspace">
+          {/* DROP ZONE */}
+          <div className="drop-zone" onDragOver={onDragOver} onDragLeave={() => { }} onDrop={onDrop} onClick={() => fileRef.current?.click()}>
+            <div className="dc tl" /><div className="dc tr" /><div className="dc bl" /><div className="dc br" />
+            {scanning && <div className="scan-beam" />}
+            {previewSrc
+              ? <img className="preview-img" src={previewSrc} alt="preview" />
+              : audioSrc
+                ? <div className="drop-inner">
+                  <div className="drop-title">{fileName}</div>
+                  <div className="drop-sub">{fileSize} MB — ready</div>
+                  <audio
+                    controls
+                    src={audioSrc}
+                    style={{
+                      width: "100%",
+                      marginTop: "16px",
+                      accentColor: "var(--acc)",
+                      filter: "invert(1) hue-rotate(180deg)"
+                    }}
+                  />
                 </div>
-                <div className="verdict-body">
-                  <VerdictRing score={verdict.score} color={verdict.color} glow={verdict.glow} />
-                  <div className="verdict-word" style={{ color: verdict.color || "var(--pale)" }}>{verdict.word}</div>
-                  <div className="verdict-note">{verdict.note}</div>
-                </div>
-              </div>
-
-              {pipelineVisible && (
-                <div className="panel">
-                  <div className="panel-head"><div className="panel-label">Pipeline</div></div>
-                  <div className="pipe-body">
-                    {pipelineSteps.map((s, i) => (
-                      <div key={i} className={`pipe-step${s.state === "done" ? " done" : s.state === "running" ? " running" : ""}`}>
-                        <div className={`pipe-mark${s.state === "done" ? " done" : s.state === "running" ? " active" : ""}`}>
-                          {s.state === "done" ? "✓" : `0${i + 1}`}
-                        </div>
-                        <span>{s.label}</span>
-                      </div>
+                : <div className="drop-inner">
+                  <div className="drop-mirage">
+                    {[{ d: "0s", op: .7, t: "0" }, { d: ".4s", op: .42, t: "8px" }, { d: ".8s", op: .25, t: "16px" }, { d: "1.2s", op: .14, t: "24px" }, { d: "1.6s", op: .06, t: "32px" }].map((l, i) => (
+                      <div key={i} className="dm-line" style={{ "--delay": l.d, opacity: l.op, top: l.t }} />
                     ))}
                   </div>
+                  <div className="drop-title">{fileName ? fileName : "Submit for analysis"}</div>
+                  <div className="drop-sub">{fileSize ? `${fileSize} MB — ready` : "Drag & drop your file here,\nor select from your device."}</div>
+                  <div className="drop-fmts">{cfg.fmts.map(f => <span key={f} className="dfmt">{f}</span>)}</div>
+                  <button className="drop-cta" onClick={e => { e.stopPropagation(); fileRef.current?.click() }}><span>Browse Files</span></button>
                 </div>
-              )}
+            }
+          </div>
+          <input type="file" ref={fileRef} onChange={onFilePick} />
 
+          {/* SIDEBAR */}
+          <div className="sidebar">
+            <div className="panel">
+              <div className="panel-head">
+                <div className="panel-label">Verdict</div>
+                <div className="panel-status">
+                  <div className="pulse-dot" style={{ width: 4, height: 4 }} />
+                  <span>{analysing ? "Processing" : "Idle"}</span>
+                </div>
+              </div>
+              <div className="verdict-body">
+                <VerdictRing score={verdict.score} color={verdict.color} glow={verdict.glow} />
+                <div className="verdict-word" style={{ color: verdict.color || "var(--pale)" }}>{verdict.word}</div>
+                <div className="verdict-note">{verdict.note}</div>
+              </div>
+            </div>
+
+            {pipelineVisible && (
               <div className="panel">
-                <div className="panel-head"><div className="panel-label">Signal Analysis</div></div>
-                <div className="metrics-body">
-                  {metrics.map((m, i) => (
-                    <MetricBar key={i} name={m.n} color={m.c} value={m.value || 0} label={m.label || "—"} />
+                <div className="panel-head"><div className="panel-label">Pipeline</div></div>
+                <div className="pipe-body">
+                  {pipelineSteps.map((s, i) => (
+                    <div key={i} className={`pipe-step${s.state === "done" ? " done" : s.state === "running" ? " running" : ""}`}>
+                      <div className={`pipe-mark${s.state === "done" ? " done" : s.state === "running" ? " active" : ""}`}>
+                        {s.state === "done" ? "✓" : `0${i + 1}`}
+                      </div>
+                      <span>{s.label}</span>
+                    </div>
                   ))}
                 </div>
               </div>
+            )}
 
-              <button className="run-btn" disabled={!fileLoaded || analysing} onClick={runAnalysis}>
-                <span>{!fileLoaded ? "No File Selected" : analysing ? "Analysing…" : "Initiate Analysis"}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* RESULTS */}
-          {results.length > 0 && (
-            <div style={{ marginBottom: 44 }}>
-              <div className="sec-head" style={{ marginBottom: 18 }}>Subsystem Results</div>
-              <div className="results-grid">
-                {results.map((r, i) => (
-                  <ResultCard key={i} {...r} mode={mode} visible={visibleScores.includes(i)} />
+            <div className="panel">
+              <div className="panel-head"><div className="panel-label">Signal Analysis</div></div>
+              <div className="metrics-body">
+                {metrics.map((m, i) => (
+                  <MetricBar key={i} name={m.n} color={m.c} value={m.value || 0} label={m.label || "—"} />
                 ))}
               </div>
             </div>
-          )}
 
-          {/* HISTORY TABLE */}
-          <div style={{ animation: "fadeUp .7s cubic-bezier(.22,1,.36,1) .4s both" }}>
-            <div className="sec-head" style={{ marginBottom: 18 }}>Recent Cases</div>
-            <div className="table-wrap">
-              <div className="t-head"><div>File</div><div>Type</div><div>Verdict</div><div>Score</div><div>Timestamp</div></div>
-              {history.length === 0
-                ? <div style={{ padding: "20px", color: "var(--fog)", textAlign: "center" }}>No cases analysed yet</div>
-                : history.map((r, i) => (
-                  <div key={i} className="t-row">
-                    <div className="t-file"><div className="t-glyph">{r.glyph}</div><div><div className="t-fname">{r.name}</div><div className="t-fsize">{r.size}</div></div></div>
-                    <div className="t-type">{r.type}</div>
-                    <div><span className={`rc-verdict ${r.cls}`}>{r.lbl}</span></div>
-                    <div className="t-conf" style={{ color: r.confClr }}>{r.conf}</div>
-                    <div className="t-date">{r.date}</div>
-                  </div>
-                ))
-              }
-            </div>
+            <button className="run-btn" disabled={!fileLoaded || analysing} onClick={runAnalysis}>
+              <span>{!fileLoaded ? "No File Selected" : analysing ? "Analysing…" : "Initiate Analysis"}</span>
+            </button>
           </div>
         </div>
-      </main>
-    </>
-  );
+
+        {/* RESULTS */}
+        {results.length > 0 && (
+          <div style={{ marginBottom: 44 }}>
+            <div className="sec-head" style={{ marginBottom: 18 }}>Subsystem Results</div>
+            <div className="results-grid">
+              {results.map((r, i) => (
+                <ResultCard key={i} {...r} mode={mode} visible={visibleScores.includes(i)} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* HISTORY TABLE */}
+        <div style={{ animation: "fadeUp .7s cubic-bezier(.22,1,.36,1) .4s both" }}>
+          <div className="sec-head" style={{ marginBottom: 18 }}>Recent Cases</div>
+          <div className="table-wrap">
+            <div className="t-head"><div>File</div><div>Type</div><div>Verdict</div><div>Score</div><div>Timestamp</div></div>
+            {history.length === 0
+              ? <div style={{ padding: "20px", color: "var(--fog)", textAlign: "center" }}>No cases analysed yet</div>
+              : history.map((r, i) => (
+                <div key={i} className="t-row">
+                  <div className="t-file"><div className="t-glyph">{r.glyph}</div><div><div className="t-fname">{r.name}</div><div className="t-fsize">{r.size}</div></div></div>
+                  <div className="t-type">{r.type}</div>
+                  <div><span className={`rc-verdict ${r.cls}`}>{r.lbl}</span></div>
+                  <div className="t-conf" style={{ color: r.confClr }}>{r.conf}</div>
+                  <div className="t-date">{r.date}</div>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+      </div>
+    </main>
+  </>
+);
 }
