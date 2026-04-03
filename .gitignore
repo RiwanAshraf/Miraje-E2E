@@ -23,5 +23,18 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment & secrets — NEVER commit these
+*.env
+backend/firebase-service-account.json
+
+# ML model files (large binaries)
 backend/image_module.pth
 backend/audio_model.keras
+backend/models/*.pth
+backend/models/*.keras
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+backend/.pytest_cache/
