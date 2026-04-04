@@ -262,105 +262,267 @@ export default function Miraje() {
   function onDrop(e) { e.preventDefault(); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); }
   function onFilePick(e) { if (e.target.files[0]) loadFile(e.target.files[0]); }
 
-  const runAnalysis = useCallback(async () => {
-    if (!fileLoaded || analysing) return;
-    setAnalysing(true);
-    setPipelineVisible(true);
-    const steps = cfg.steps.map((s, i) => ({ label: s, state: "pending" }));
-    setPipelineSteps(steps);
+//   const runAnalysis = useCallback(async () => {
+//     if (!fileLoaded || analysing) return;
+//     setAnalysing(true);
+//     setPipelineVisible(true);
+//     const steps = cfg.steps.map((s, i) => ({ label: s, state: "pending" }));
+//     setPipelineSteps(steps);
 
-    for (let i = 0; i < steps.length; i++) {
-      setPipelineSteps(prev => prev.map((s, j) => j === i ? { ...s, state: "running" } : s));
-      await sleep(360 + Math.random() * 260);
-      setPipelineSteps(prev => prev.map((s, j) => j === i ? { ...s, state: "done" } : s));
-    }
+//     for (let i = 0; i < steps.length; i++) {
+//       setPipelineSteps(prev => prev.map((s, j) => j === i ? { ...s, state: "running" } : s));
+//       await sleep(360 + Math.random() * 260);
+//       setPipelineSteps(prev => prev.map((s, j) => j === i ? { ...s, state: "done" } : s));
+//     }
 
-    let score = 50 + Math.random() * 46
-    let prediction = "real"
+//     let score = 50 + Math.random() * 46
+//     let prediction = "real"
 
-    if (mode === 'image') {
-      try {
-        const formData = new FormData();
-        formData.append("image", file);
-        const response = await fetch("http://localhost:5000/predict-image", {
-          method: "POST",
-          body: formData
-        });
-        const data = await response.json();
-        score = data.fake_probability;
-        prediction = data.prediction;
-      } catch (err) {
-        console.error("Image API error:", err);
-      }
+//     if (mode === 'image') {
+//       try {
+//         const formData = new FormData();
+//         formData.append("image", file);
+//         const response = await fetch("http://localhost:5000/predict-image", {
+//           method: "POST",
+//           body: formData
+//         });
+//         const data = await response.json();
+//         score = data.fake_probability;
+//         prediction = data.prediction;
+//       } catch (err) {
+//         console.error("Image API error:", err);
+//       }
 
-    } else if (mode === 'audio') {
-      try {
-        const formData = new FormData();
-        formData.append("audio", file);
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60000);
-        const response = await fetch("http://localhost:5000/predict-audio", {
-          method: "POST",
-          body: formData,
-          signal: controller.signal
-        });
-        clearTimeout(timeout);
-        const data = await response.json();
-        score = data.score;
-        prediction = data.prediction;
-      } catch (err) {
-        console.error("Audio API error:", err);
-        score = 50;
-        prediction = "real";
-      }
-    }
+//     } else if (mode === 'audio') {
+//       try {
+//         const formData = new FormData();
+//         formData.append("audio", file);
+//         const controller = new AbortController();
+//         const timeout = setTimeout(() => controller.abort(), 60000);
+//         const response = await fetch("http://localhost:5000/predict-audio", {
+//           method: "POST",
+//           body: formData,
+//           signal: controller.signal
+//         });
+//         clearTimeout(timeout);
+//         const data = await response.json();
+//         score = data.score;
+//         prediction = data.prediction;
+//       } catch (err) {
+//         console.error("Audio API error:", err);
+//         score = 50;
+//         prediction = "real";
+//       }
+//     }
 
-  else if (mode === 'signature') {
-    try {
-      const formData = new FormData();
+//   else if (mode === 'signature') {
+//     try {
+//       const formData = new FormData();
+//       formData.append("signature", file);
+//       const response = await fetch("http://localhost:5000/predict-signature", {
+//         method: "POST",
+//         body: formData
+//       });
+//       const data = await response.json();
+//       score = data.score;
+//       prediction = data.prediction;
+//     } catch (err) {
+//       console.error("Signature API error:", err);
+//       score = 50;
+//       prediction = "real";
+//     }
+//   }
+
+//   const isFake = prediction === "fake";
+//   const isUnc = score >= 45 && score <= 68;
+//   const color = isFake ? "var(--danger2)" : isUnc ? "var(--warn2)" : "var(--safe2)";
+//   const glow = isFake ? "rgba(192,80,74,.4)" : isUnc ? "rgba(176,128,64,.38)" : "rgba(74,158,130,.4)";
+//   const word = isFake ? (mode === "signature" ? "Forgery Confirmed" : "Synthetic Detected") : isUnc ? "Inconclusive" : "Authentic";
+//   setVerdict({ score, color, glow, word, note: `${score.toFixed(1)}% synthetic probability` });
+
+//   setMetrics(cfg.metrics.map((m) => ({ ...m, value: score, label: score.toFixed(1) + "%" })));
+
+//   setResults(cfg.results.map((r) => ({ ...r, score: score })));
+//   setVisibleScores([]);
+//   await sleep(80);
+//   cfg.results.forEach((_, i) => setTimeout(() => setVisibleScores(prev => [...prev, i]), i * 180));
+//   const now = new Date();
+//   const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} · ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+//   const newEntry = {
+//     glyph: getModeGlyph(mode),
+//     name: fileName,
+//     size: fileSize + " MB",
+//     type: mode.charAt(0).toUpperCase() + mode.slice(1),
+//     cls: isFake ? "v-fake" : isUnc ? "v-unc" : "v-real",
+//     lbl: isFake ? (mode === "signature" ? "Forged" : "Synthetic") : isUnc ? "Inconclusive" : "Authentic",
+//     conf: score.toFixed(1) + "%",
+//     confClr: isFake ? "var(--danger2)" : isUnc ? "var(--warn2)" : "var(--safe2)",
+//     date: dateStr
+//   };
+//   setHistory(prev => [newEntry, ...prev]);
+//   setAnalysing(false);
+// }, [fileLoaded, analysing, mode, cfg, file]);
+
+const runAnalysis = useCallback(async () => {
+  if (!fileLoaded || analysing) return;
+
+  setAnalysing(true);
+  setPipelineVisible(true);
+
+  const steps = cfg.steps.map((s) => ({ label: s, state: "pending" }));
+  setPipelineSteps(steps);
+
+  for (let i = 0; i < steps.length; i++) {
+    setPipelineSteps(prev =>
+      prev.map((s, j) => (j === i ? { ...s, state: "running" } : s))
+    );
+
+    await sleep(360 + Math.random() * 260); // animation only
+
+    setPipelineSteps(prev =>
+      prev.map((s, j) => (j === i ? { ...s, state: "done" } : s))
+    );
+  }
+
+  let score = null;
+  let prediction = null;
+
+  try {
+    const formData = new FormData();
+
+    if (mode === "image") {
+      formData.append("image", file);
+
+      const response = await fetch("http://localhost:5000/predict-image", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await response.json();
+
+      score = data.fake_probability;
+      prediction = data.prediction;
+
+    } else if (mode === "audio") {
+
+      formData.append("audio", file);
+
+      const response = await fetch("http://localhost:5000/predict-audio", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await response.json();
+
+      score = data.score ?? data.fake_probability;
+      prediction = data.prediction;
+
+    } else if (mode === "signature") {
+
       formData.append("signature", file);
+
       const response = await fetch("http://localhost:5000/predict-signature", {
         method: "POST",
         body: formData
       });
+
       const data = await response.json();
-      score = data.score;
+
+      score = data.score ?? data.fake_probability;
       prediction = data.prediction;
-    } catch (err) {
-      console.error("Signature API error:", err);
-      score = 50;
-      prediction = "real";
     }
+
+  } catch (err) {
+    console.error("API error:", err);
+    setAnalysing(false);
+    return;
+  }
+
+  if (score == null) {
+    setAnalysing(false);
+    return;
   }
 
   const isFake = prediction === "fake";
   const isUnc = score >= 45 && score <= 68;
-  const color = isFake ? "var(--danger2)" : isUnc ? "var(--warn2)" : "var(--safe2)";
-  const glow = isFake ? "rgba(192,80,74,.4)" : isUnc ? "rgba(176,128,64,.38)" : "rgba(74,158,130,.4)";
-  const word = isFake ? (mode === "signature" ? "Forgery Confirmed" : "Synthetic Detected") : isUnc ? "Inconclusive" : "Authentic";
-  setVerdict({ score, color, glow, word, note: `${score.toFixed(1)}% synthetic probability` });
 
-  setMetrics(cfg.metrics.map((m) => ({ ...m, value: score, label: score.toFixed(1) + "%" })));
+  const color = isFake
+    ? "var(--danger2)"
+    : isUnc
+    ? "var(--warn2)"
+    : "var(--safe2)";
 
-  setResults(cfg.results.map((r) => ({ ...r, score: score })));
+  const glow = isFake
+    ? "rgba(192,80,74,.4)"
+    : isUnc
+    ? "rgba(176,128,64,.38)"
+    : "rgba(74,158,130,.4)";
+
+  const word = isFake
+    ? mode === "signature"
+      ? "Forgery Confirmed"
+      : "Synthetic Detected"
+    : isUnc
+    ? "Inconclusive"
+    : "Authentic";
+
+  setVerdict({
+    score,
+    color,
+    glow,
+    word,
+    note: `${score.toFixed(1)}% synthetic probability`
+  });
+
+  setMetrics(
+    cfg.metrics.map((m, i) => ({
+      ...m,
+      value: Math.max(0, score - i * 6),
+      label: (Math.max(0, score - i * 6)).toFixed(1) + "%"
+    }))
+  );
+
+  setResults(cfg.results.map((r) => ({ ...r, score })));
+
   setVisibleScores([]);
+
   await sleep(80);
-  cfg.results.forEach((_, i) => setTimeout(() => setVisibleScores(prev => [...prev, i]), i * 180));
+
+  cfg.results.forEach((_, i) =>
+    setTimeout(() => setVisibleScores(prev => [...prev, i]), i * 180)
+  );
+
   const now = new Date();
-  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} · ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  const dateStr =
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+      now.getDate()
+    ).padStart(2, "0")} · ${String(now.getHours()).padStart(2, "0")}:${String(
+      now.getMinutes()
+    ).padStart(2, "0")}`;
+
   const newEntry = {
     glyph: getModeGlyph(mode),
     name: fileName,
     size: fileSize + " MB",
     type: mode.charAt(0).toUpperCase() + mode.slice(1),
     cls: isFake ? "v-fake" : isUnc ? "v-unc" : "v-real",
-    lbl: isFake ? (mode === "signature" ? "Forged" : "Synthetic") : isUnc ? "Inconclusive" : "Authentic",
+    lbl: isFake
+      ? mode === "signature"
+        ? "Forged"
+        : "Synthetic"
+      : isUnc
+      ? "Inconclusive"
+      : "Authentic",
     conf: score.toFixed(1) + "%",
-    confClr: isFake ? "var(--danger2)" : isUnc ? "var(--warn2)" : "var(--safe2)",
+    confClr: color,
     date: dateStr
   };
+
   setHistory(prev => [newEntry, ...prev]);
+
   setAnalysing(false);
+
 }, [fileLoaded, analysing, mode, cfg, file]);
 function getModeGlyph(m) {
   return m === "image" ? "▣" : m === "video" ? "▶" : m === "audio" ? "♪" : "✦";

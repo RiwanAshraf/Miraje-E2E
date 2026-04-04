@@ -25,3 +25,4 @@ dist-ssr
 
 backend/image_module.pth
 backend/audio_model.keras
+backend/signature_forgery_detector.keras
